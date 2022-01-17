@@ -59,10 +59,29 @@ class FlatWorld:
             Circle(PolarCoordinate.random_within_radius(arena_radius),
                    zone_radius) for _ in range(num_forbidden)
         ]
+        self._zone_radius = zone_radius
+    
+    def move_goal(self, distance=None):
+        """
+        if not distance:
+            distance = self._arena_radius / 2.
+        current_cartesian_posn = self._goal.center.to_cartesian()
+
+        while True:
+            random_vector = np.random(2)
+            random_unit_vector = random_vector / np.linalg.norm(random_vector)
+
+            target_posn = random_unit_vector * distance + current_cartesian_posn
+            if np.linalg.norm(target_posn) < self._arena_radius:
+                break
+        """
+        self._goal = Circle(PolarCoordinate.random_within_radius(self._arena_radius),
+                            self._zone_radius)
+
 
     def update_robot(self, cartesian_delta):
-        self._robot = PolarCoordinate.from_cartesian(
-            *(self._robot.to_cartesian() + cartesian_delta))
+        self._robot = PolarCoordinate.from_cartesian(*(
+            self._robot.to_cartesian() + cartesian_delta))
 
     def vector_to_goal_cartesian(self):
         return np.array(self._goal.center.to_cartesian()) - np.array(
@@ -107,9 +126,9 @@ class FlatWorld:
         bin_size = (np.pi * 2) / num_bins
 
         egocentric_hazard_centers = [
-            PolarCoordinate.from_cartesian(
-                *(np.array(position.to_cartesian()) -
-                  np.array(cartesian_ego_position))) for position in positions
+            PolarCoordinate.from_cartesian(*(
+                np.array(position.to_cartesian()) -
+                np.array(cartesian_ego_position))) for position in positions
         ]
         for hazard in egocentric_hazard_centers:
             assert np.isfinite(hazard._angle)

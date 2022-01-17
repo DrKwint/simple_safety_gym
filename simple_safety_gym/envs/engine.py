@@ -2,7 +2,7 @@ import gym
 from gym import spaces
 import numpy as np
 
-from world import FlatWorld
+from simple_safety_gym.envs.world import FlatWorld
 from collections import OrderedDict
 
 
@@ -16,14 +16,15 @@ class FlatEnv(gym.Env):
             'action_type': 'cartesian',
             'arena_radius': 20.,
             'zone_radius': 1.,
-            'num_hazards': 10,
-            'lidar_range': 8.,
+            'num_hazards': 20,
+            'lidar_range': 24.,
             'lidar_num_bins': 12,
-            'max_move': 2.,
+            'max_move': 0.25,
             'hazard_cost': 1.,
+            'oob_cost': 0.,
             'goal_reward': 10.,
             'dense_distance_reward': 0.1,
-            'max_time': 25,
+            'max_time': 1000,
         }
         self._world = None
         self.action_space = spaces.Box(low=-1,
@@ -51,6 +52,8 @@ class FlatEnv(gym.Env):
 
         # update world state
         action = np.array(action, copy=False)  # Cast to ndarray
+        while len(action.shape) > 1:
+            action = action[0]
         assert not self.done, 'Environment must be reset before stepping'
 
         if self._config['action_type'] == 'polar':
@@ -60,14 +63,14 @@ class FlatEnv(gym.Env):
         self._world.update_robot(move)
 
         # set reward and cost
+        reward = 0.
         if self._world.check_hazard_collision():
             info['cost'] += self._config['hazard_cost']
         if self._world.check_out_of_bounds():
             info['cost'] += self._config['oob_cost']
-            self.done = True
         if self._world.check_goal_collision():
-            reward = self._config['goal_reward']
-            self.done = True
+            reward += self._config['goal_reward']
+            self._world.move_goal()
         else:
             reward = 0.
         distance_to_goal = np.linalg.norm(
@@ -76,30 +79,28 @@ class FlatEnv(gym.Env):
             last_distance_to_goal - distance_to_goal)
 
         if self.step_num >= self._config['max_time']:
-            done = True
+            self.done = True
         else:
             self.step_num += 1
 
-        # construct observation
+        return self.observation(), reward, self.done, info
+
+    def observation(self):
         observation = {}
         observation['hazards_lidar'] = self._world.hazard_lidar(
             self._config['lidar_range'], self._config['lidar_num_bins'])
         observation['goal_lidar'] = self._world.goal_lidar(
             self._config['lidar_range'], self._config['lidar_num_bins'])
-        #observation['wall_lidar'] = self._world.wall_lidar(
-        #    self._robot_position, self._config['lidar_range'],
-        #    self._config['lidar_num_bins'])
-        return observation, reward, self.done, info
+        return observation
 
     def reset(self):
         self._world = FlatWorld(True,
                                 arena_radius=self._config['arena_radius'],
                                 zone_radius=self._config['zone_radius'],
                                 num_forbidden=self._config['num_hazards'])
-        observation = None
         self.done = False
         self.step_num = 0
-        return observation
+        return self.observation()
 
     def render(self, mode='human'):
         self._world.render()
